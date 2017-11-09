@@ -1,0 +1,15 @@
+{
+  "name": "VizCrawl",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Jacob",
+  "license": "ISC",
+  "dependencies": {
+    "aws-sdk": "^2.141.0",
+    "bluebird": "^3.5.0",
+    "chrome-pool": "^1.2.0",
+    "chrome-remote-interface": "^0.22.0",
+    "dynamodb-doc": "^1.0.0",
+    "fs-path": "0.0.23"
+  }
+}
