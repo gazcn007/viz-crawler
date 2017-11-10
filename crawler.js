@@ -4,86 +4,108 @@ const ChromePool = require('chrome-pool');
 const fsPath = require('fs-path');
 const Promise = require('bluebird');
 const exec = Promise.promisify(require('child_process').exec);
-
-// Default configuration
-var config = {
-    numberOfRequests: 1000,
-    numberOfConcurrency: 15,
-    scenerioRatios:{
-        screenshot: 0.3,
-        requests: 0.3,
-        clicking: 0.3
-    },
-    numberOfPagesToTest: 10,
-    domainURL: "https://public-aws-poc.dev.tabint.net"
-}
+var fileIndex = [];
 
 CDP({
     host: 'localhost',
     port: 9222,
 }, async client => {
-    fs.readFile("./viz-urls.json", "utf8", async (err, fileData)=>{
-        const requestsMade = []
+    fs.exists('./bootstrap/index.json', (fileExists)=>{
+        if(fileExists){
+            fs.readFile('./bootstrap/index.json', (error, data)=>{
+                fileIndex = JSON.parse(data);
+                console.log(fileIndex)
+            });
+        } else {
+            fsPath.writeFile('./bootstrap/index.json', JSON.stringify(fileIndex), (err)=>{
+                if(err) throw err;
+            });
+        }
+    });
+    fs.readFile("./profile-urls.json", "utf8", async (err, fileData)=>{
+        const responseReceived = [];
         var { urls } = JSON.parse(fileData);
-        var fullList = [].concat.apply([], urls).map(e=>{
-            return config.domainURL+e;
-        });
-        var requestIdForBootstrap;
+        var requestIdForBootstrap, method, bootstrapUrl, requestId, currentUrl;
         let wait = ms => new Promise(resolve => setTimeout(resolve, ms));
         const { Page, Target, Network, DOM } = client;
         Network.requestWillBeSent(params => {
             if(params.request.method=='POST'
                 &&params.request.url.includes('bootstrapSession')
                 &&!params.request.url.includes('errors')){
-                requestsMade.push(params);
-                console.log(params.request.method);
-                console.log(params.request.url);
-                console.log(params.requestId);
-                requestIdForBootstrap=params.requestId;
+                method = params.request.method,
+                bootstrapUrl = params.request.url,
+                requestId = params.requestId
+                requestIdForBootstrap = params.requestId;
             }
         })
-        // Network.responseReceived(async ({requestId, reponse}) =>{
-        //         const {body, base64Encoded} = await Network.getResponseBody({requestId});
-        //     if(requestId==requestIdForBootstrap){
-        //         console.log(`RES [${requestId}] body: ${body}`);
-        //     }
-        // });
         Network.loadingFinished(async ({requestId})=>{
             if(requestId==requestIdForBootstrap){
-                const {body, base64Encoded} = await Network.getResponseBody({requestId});
-                console.log(`RES [${requestId}] body: ${body} \n`);
+                console.log('going for',requestId);
+                fileIndex.push({
+                    currentUrl,
+                    requestId
+                });
+                Network.getResponseBody({requestId}, (base64Encoded, body, error)=>{
+                    if(error){
+                        console.log(error);
+                    }
+                    fsPath.writeFile('./bootstrap/'+requestId+'.json', JSON.stringify({
+                        requestId,
+                        method,
+                        bootstrapUrl,
+                        currentUrl,
+                        body
+                    }),function (err){
+                        if(err) throw err;
+                        console.log('Parsing finished for '+requestId+'; File created in the local directory!')
+                        return;
+                    });  
+                });  
             }
         })
         await Network.enable();
         await Page.enable();
         // var url_index_mapping = [];
         var index = 1;
-        // for ( url of fullList){
-        //     if(Math.random()<0.1){
+        for ( url of urls){
+            if(Math.random()<0.1){
                 // url_index_mapping.push({index, url});
-                // await Page.navigate({url});
-                await Page.navigate({url:'https://public-aws-poc.dev.tabint.net//views/MSVizV24-6-2014/MSVizV2?%3Aembed=y&%3AshowVizHome=no&%3Adisplay_count=y&%3Adisplay_static_image=y&%3AbootstrapWhenNotified=true'});
+                await Page.navigate({url});
+                currentUrl=url;
+                // await Page.navigate({url:'https://public.tableau.com/en-us/s/gallery/sustainable-development-goals?gallery=votd'});
                 await Page.loadEventFired();
-                await wait(3000);
-                
-                // const rootElement = await DOM.getDocument();
-                // const { root: { nodeId }} =rootElement;
-                // var { nodeIds: linkIDs } = await DOM.querySelectorAll({
-                //     selector:'span',
-                //     nodeId
-                // })
-                // const attributes = await Promise.all(linkIDs.map((ID) =>
-                //     DOM.getAttributes({ nodeId: ID })
-                // ));
-                // // console.log(test);
-                // if(index == config.numberOfPagesToTest) break;
-                // index++;
-        //     }
-        // }
+                await wait(5000);
+                index++;
+            }
+            if(index==50){
+                break;
+            }
+        }
         await client.close();
-
+        fsPath.writeFile('./bootstrap/index.json', JSON.stringify(fileIndex), (err)=>{
+            if(err) throw err;
+        });
+        return;
     });
 });
 
-
+// -------------------------------------ERROR HANDLER---------------------------------//
+//do something when app is closing
+process.on('exit', exitHandler.bind(null,{cleanup:true}));
+//catches ctrl+c event
+process.on('SIGINT', exitHandler.bind(null, {exit:true}));
+// catches "kill pid" (for example: nodemon restart)
+process.on('SIGUSR1', exitHandler.bind(null, {exit:true}));
+process.on('SIGUSR2', exitHandler.bind(null, {exit:true}));
+//catches uncaught exceptions
+process.on('uncaughtException', exitHandler.bind(null, {exit:true}));
+function exitHandler(options, err) {
+    if (options.cleanup) console.log('clean');
+    if (err) console.log(err.stack);
+    fsPath.writeFile('./bootstrap/index.json', JSON.stringify(fileIndex), (err)=>{
+        if(err) throw err;
+        console.log(fileIndex);
+        if (options.exit) process.exit();
+    });
+}
 

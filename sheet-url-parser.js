@@ -20,7 +20,7 @@ CDP({
 
     await Page.enable();
     await Runtime.enable();
-    console.log('The Automation Parser is hacking the aws-tabint')
+    console.log('The Automation Parser is Hacking the Gallery Page');
 
     await Runtime.evaluate({
         expression: "function triggerEventOnPage(selector, eventName) {\
@@ -57,7 +57,7 @@ CDP({
 
     // Use set to get unique items only
     const uniqueLinks = new Set([...links]);
-    console.log(links.length);
+    console.log("Total Links hacked is now increased to "+links.length);
     var objToWrite = { urls:links.map(e=>{
         return e
     }) };
