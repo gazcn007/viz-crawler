@@ -1,6 +1,7 @@
 # Viz-Crawler
 ## Tableau Hackathon Project
-![](./Drawing.jpeg)
+![](./Drawing.jpeg) 
+
 "The purpose of art is washing the dust of daily life off our souls"... Always draw a logo for your project :) 
 
 ## Set up 
