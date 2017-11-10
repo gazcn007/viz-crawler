@@ -5,7 +5,7 @@
   "author": "Jacob",
   "license": "ISC",
   "dependencies": {
-    "aws-sdk": "^2.141.0",
+    "aws-sdk": "^2.149.0",
     "bluebird": "^3.5.0",
     "chrome-pool": "^1.2.0",
     "chrome-remote-interface": "^0.22.0",
