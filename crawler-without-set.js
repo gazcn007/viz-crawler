@@ -22,13 +22,12 @@ CDP({
         }
     });
     fs.readFile("./profile-urls.json", "utf8", async (err, fileData)=>{
-        const requestWillBeSent = [], responseReceived = [];
+        const responseReceived = [];
         var { urls } = JSON.parse(fileData);
-        var requestIdForBootstrap, method, bootstrapUrl, requestId, currentUrl;
+        var requestIdForBootstrap, method, bootstrapUrl, requestId, currentUrl, mutex = false;
         let wait = ms => new Promise(resolve => setTimeout(resolve, ms));
         const { Page, Target, Network, DOM } = client;
         Network.requestWillBeSent(params => {
-            requestWillBeSent.push(params.requestId);
             if(params.request.method=='POST'
                 &&params.request.url.includes('bootstrapSession')
                 &&!params.request.url.includes('errors')){
@@ -42,7 +41,6 @@ CDP({
         Network.loadingFinished(({requestId})=>{
             console.log(requestId);
             console.log(requestIdForBootstrap);
-            responseReceived.push(requestId);
             if(requestId==requestIdForBootstrap){
                 console.log('going for',requestId);
                 fileIndex.push({
@@ -55,6 +53,7 @@ CDP({
                     if(error){
                         console.log(error);
                     }
+                    mutex = true;
                     fsPath.writeFile('./bootstrap/'+requestId+'.json', JSON.stringify({
                         requestId,
                         method,
@@ -81,10 +80,7 @@ CDP({
                 // await Page.navigate({url});
                 // currentUrl=url;
                 await Page.loadEventFired();
-                await wait(3000);
-                console.log(requestWillBeSent);
-                console.log(responseReceived);
-                console.log(requestId);
+                await wait(6000);
                 index++;
         //     }
         //     if(index==50){

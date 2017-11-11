@@ -56,7 +56,6 @@ fs.readFile("./bootstrap/index.json", "utf8", async (err, fileData) => {
     var fileIndex = JSON.parse(fileData);
     for (file of fileIndex) {
         fs.readFile("./bootstrap/"+file.requestId+".json", "utf8", async (err, data) => {
-            console.log(data);
             var request = JSON.parse(data);
             let params = {
                 Item: {
