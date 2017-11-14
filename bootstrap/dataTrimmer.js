@@ -14,7 +14,9 @@ fs.readFile('./index.json', 'utf-8', (error, data) => {
       let file = './'+id+'.json';
       fs.readFile(file, 'utf-8', (error, data) => {
         data = data.replace(/[http|https]:\/\//g, 'URL');
-        let arrayCleaner = /"[0-9a-zA-Z\-!$%^&*()_+|~=`;'\@\#?,\s.\/]+?"/g;
+        data = data.replace(/\<*.\>/g, 'LRBRAKET');
+        data = data.replace(/:/g, 'SEMIC');
+        let arrayCleaner = /"[0-9a-zA-Z\-!$%^&*()_+|~=`;\’'\@\#?,\s.\/]+?"/g;
         let match;
         let wordsBag = new Set();
         while((match = arrayCleaner.exec(data)) != null) {

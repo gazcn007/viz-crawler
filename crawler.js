@@ -60,7 +60,7 @@ CDP({
                           let dataId = d.slice(0, d.indexOf(';{'));
                           fileIndex.push(dataId);
                           d = JSON.parse(d.slice(d.indexOf(';{') + 1));
-                          fsPath.writeFile('./bootstrap/'+dataId+'.json', JSON.stringify(d),function (err){
+                          fsPath.writeFile('./bootstrap/'+requestId+'-'+dataId+'.json', JSON.stringify(d),function (err){
                               if(err) throw err;
                               console.log('Parsing finished for '+dataId+'; File created in the local directory!');
                               finished = true;
