@@ -2,7 +2,8 @@ const fs = require('fs');
 
 function filter(str) {
   let charTest = str.match(/[a-zA-Z]+/) && str.match(/[a-zA-Z]+/)[0].length >= 2;
-  return charTest;
+  let lenTest = str.length <= 20 + (str.match(/\s/g) || []).length * 20;
+  return charTest && lenTest;
 }
 fs.readFile('./index.json', 'utf-8', (error, data) => {
   if (error) {
@@ -21,7 +22,7 @@ fs.readFile('./index.json', 'utf-8', (error, data) => {
             wordsBag.add(match[0])
           }
         }
-        fs.writeFileSync('./'+id+'-t.json', Array.from(wordsBag));
+        fs.writeFileSync('./trimmed/'+id+'-t.json', Array.from(wordsBag));
       });
     }
   }
