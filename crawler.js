@@ -23,71 +23,77 @@ CDP({
           var requestIdForBootstrap, method, bootstrapUrl, requestId, currentUrl;
           let wait = ms => new Promise(resolve => setTimeout(resolve, ms));
           const { Page, Target, Network, DOM } = client;
-          var finished = false;
-          Network.requestWillBeSent(params => {
-              requestWillBeSent.push(params.requestId);
-
-              if (params.request.method === 'POST' &&
-                  params.request.url.includes('bootstrapSession') &&
-                 !params.request.url.includes('errors')) {
-                  method = params.request.method,
-                  bootstrapUrl = params.request.url,
-                  requestId = params.requestId
-                  requestIdForBootstrap = params.requestId;
-                  console.log('Find BoostrapUrl for ',requestId,':', bootstrapUrl);
-              }
-          });
-
-          Network.loadingFinished(({requestId})=>{
-              responseReceived.push(requestId);
-              if(requestId === requestIdForBootstrap){
-                  console.log('going for',requestId);
-                  Network.getResponseBody({requestId}, (base64Encoded, body, error)=>{
-                      if(error){
-                          throw error;
-                      }
-                      let data = body['body'];
-                      if (data) {
-                        let regx = /\}[0-9]+\;\{/g;
-                        let match;
-                        let seperator = '@$#7842@&#';
-                        while ((match = regx.exec(data)) != null) {
-                          data = data.slice(0, match.index+1) + seperator + data.slice(match.index+1);
-                        }
-                        let dataToTrim = data.split(seperator);
-                        let usefulData = {};
-                        dataToTrim.forEach((d) => {
-                          let dataId = d.slice(0, d.indexOf(';{'));
-                          fileIndex.push(dataId);
-                          d = JSON.parse(d.slice(d.indexOf(';{') + 1));
-                          fsPath.writeFile('./bootstrap/'+requestId+'-'+dataId+'.json', JSON.stringify(d),function (err){
-                              if(err) throw err;
-                              console.log('Parsing finished for '+dataId+'; File created in the local directory!');
-                              finished = true;
-                          });
-                        });
-                      }
-                  });
-              }
-          })
           await Network.enable();
           await Page.enable();
-          console.log(urls.length);
-          for (let url of urls) {
-            finished = false;
-            console.log("Start query: ", url);
-            await Page.navigate({url:url});
-            await Page.loadEventFired();
-            while (requestWillBeSent.length > responseReceived.length && !finished) {
-              await wait(1000);
+          client.setMaxListeners(200);
+          for (let i = 0; i < urls.length;) {
+            let batchNum = urls.length - i < 100 ? urls.length - i: 100;
+            let remainingRequests = [];
+            for (let c = 0; c < batchNum; c++){
+              let finished = false;
+              let url = urls[c];
+              Network.requestWillBeSent(params => {
+                  requestWillBeSent.push(params.requestId);
+                  if (params.request.method === 'POST' &&
+                      params.request.url.includes('bootstrapSession') &&
+                     !params.request.url.includes('errors')) {
+                      method = params.request.method,
+                      bootstrapUrl = params.request.url,
+                      requestId = params.requestId
+                      requestIdForBootstrap = params.requestId;
+                      console.log('Find BoostrapUrl for ',requestId,':', bootstrapUrl);
+                  }
+              });
+
+              console.log("Start query: ", url);
+              Page.navigate({url:url});
+              let task = new Promise((resolve, reject) => {
+                Page.loadEventFired((time) => {
+                  Network.loadingFinished(({requestId})=>{
+                      responseReceived.push(requestId);
+                      if(requestId === requestIdForBootstrap){
+                          console.log('going for',requestId);
+                          Network.getResponseBody({requestId}, (base64Encoded, body, error)=>{
+                              if(error){
+                                  throw error;
+                              }
+                              let data = body['body'];
+                              if (data) {
+                                let regx = /\}[0-9]+\;\{/g;
+                                let match;
+                                let seperator = '@$#7842@&#';
+                                while ((match = regx.exec(data)) != null) {
+                                  data = data.slice(0, match.index+1) + seperator + data.slice(match.index+1);
+                                }
+                                let dataToTrim = data.split(seperator);
+                                let usefulData = {};
+                                dataToTrim.forEach((d) => {
+                                  let dataId = d.slice(0, d.indexOf(';{'));
+                                  fileIndex.push(dataId);
+                                  d = JSON.parse(d.slice(d.indexOf(';{') + 1));
+                                  fsPath.writeFile('./bootstrap/'+requestId+'-'+dataId+'.json', JSON.stringify(d),function (err){
+                                      if(err) throw err;
+                                      console.log('Parsing finished for '+dataId+'; File created in the local directory!');
+                                      resolve(true);
+                                  });
+                                });
+                              }
+                          });
+                      }
+                  })
+                });
+              });
+              remainingRequests.push(task);
             }
+            i += batchNum;
+            await Promise.all(remainingRequests);
           }
           await client.close();
           fsPath.writeFile('./bootstrap/index.json', JSON.stringify(fileIndex), (err)=>{
               if(err) throw err;
           });
-          return;
       });
+
     });
 });
 
