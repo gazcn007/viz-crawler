@@ -42,25 +42,31 @@ CDP({
               responseReceived.push(requestId);
               if(requestId === requestIdForBootstrap){
                   console.log('going for',requestId);
-                  fileIndex.push({
-                      currentUrl,
-                      requestId
-                  });
                   Network.getResponseBody({requestId}, (base64Encoded, body, error)=>{
                       if(error){
                           throw error;
                       }
-                      fsPath.writeFile('./bootstrap/'+requestId+'.json', JSON.stringify({
-                          requestId,
-                          method,
-                          bootstrapUrl,
-                          currentUrl,
-                          body
-                      }),function (err){
-                          if(err) throw err;
-                          console.log('Parsing finished for '+requestId+'; File created in the local directory!');
-                          finished = true;
-                      });
+                      let data = body['body'];
+                      if (data) {
+                        let regx = /\}[0-9]+\;\{/g;
+                        let match;
+                        let seperator = '@$#7842@&#';
+                        while ((match = regx.exec(data)) != null) {
+                          data = data.slice(0, match.index+1) + seperator + data.slice(match.index+1);
+                        }
+                        let dataToTrim = data.split(seperator);
+                        let usefulData = {};
+                        dataToTrim.forEach((d) => {
+                          let dataId = d.slice(0, d.indexOf(';{'));
+                          fileIndex.push(dataId);
+                          d = JSON.parse(d.slice(d.indexOf(';{') + 1));
+                          fsPath.writeFile('./bootstrap/'+dataId+'.json', JSON.stringify(d),function (err){
+                              if(err) throw err;
+                              console.log('Parsing finished for '+dataId+'; File created in the local directory!');
+                              finished = true;
+                          });
+                        });
+                      }
                   });
               }
           })
