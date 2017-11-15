@@ -81,7 +81,7 @@ async function crawler(BatchNum){
                                 try {
                                   d = JSON.parse(d.slice(d.indexOf(';{') + 1));
                                   try {
-                                    fsPath.writeFileSync('./bootstrap/'+requestId+'-'+dataId+'.json', JSON.stringify(d));
+                                    fsPath.writeFileSync('./bootstrap/'+dataId+'.json', JSON.stringify(d));
                                   } catch(e) {
                                     reject(e);
                                   }
