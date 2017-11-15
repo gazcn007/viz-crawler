@@ -78,11 +78,15 @@ async function crawler(BatchNum){
                                 let d = dataToTrim[p];
                                 let dataId = d.slice(0, d.indexOf(';{'));
                                 fileIndex.push(dataId);
-                                d = JSON.parse(d.slice(d.indexOf(';{') + 1));
                                 try {
-                                  fsPath.writeFileSync('./bootstrap/'+requestId+'-'+dataId+'.json', JSON.stringify(d));
+                                  d = JSON.parse(d.slice(d.indexOf(';{') + 1));
+                                  try {
+                                    fsPath.writeFileSync('./bootstrap/'+requestId+'-'+dataId+'.json', JSON.stringify(d));
+                                  } catch(e) {
+                                    reject(e);
+                                  }
                                 } catch(e) {
-                                  reject(e);
+                                  return;
                                 }
                                 // console.log('File created in the local directory: '+requestId+'-'+dataId);
                               }
