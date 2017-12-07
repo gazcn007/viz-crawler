@@ -6,99 +6,115 @@ const Promise = require('bluebird');
 const exec = Promise.promisify(require('child_process').exec);
 var fileIndex = [];
 
-CDP({
-    host: 'localhost',
-    port: 9222,
-}, async client => {
-    fs.exists('./bootstrap/index.json', (fileExists)=>{
-        if(fileExists){
-            fs.readFile('./bootstrap/index.json', (error, data)=>{
-                fileIndex = JSON.parse(data);
-            });
-        } else {
-            fsPath.writeFile('./bootstrap/index.json', JSON.stringify(fileIndex), (err)=>{
-                if(err) throw err;
-            });
-        }
-    });
+async function crawler(BatchNum){
+  const chromeTabsPoll = await ChromePool.new({
+      maxTab : 200,
+      port : 9222
+  });
+  var taskFailed = 0;
+  fs.readFile('./bootstrap/index.json', (error, data)=>{
+    if (error) {
+      fsPath.writeFileSync('./bootstrap/index.json', JSON.stringify(fileIndex));
+    } else {
+      fileIndex = JSON.parse(data);
+    }
+
     fs.readFile("./profile-urls.json", "utf8", async (err, fileData)=>{
         const requestWillBeSent = [], responseReceived = [];
         var { urls } = JSON.parse(fileData);
-        var requestIdForBootstrap, method, bootstrapUrl, requestId, currentUrl;
-        let wait = ms => new Promise(resolve => setTimeout(resolve, ms));
-        const { Page, Target, Network, DOM } = client;
-        Network.requestWillBeSent(params => {
-            requestWillBeSent.push(params.requestId);
-            if(params.request.method=='POST'
-                &&params.request.url.includes('bootstrapSession')
-                &&!params.request.url.includes('errors')){
-                method = params.request.method,
-                bootstrapUrl = params.request.url,
-                requestId = params.requestId
-                requestIdForBootstrap = params.requestId;
-                console.log('set to ',requestId,' url is :', bootstrapUrl);
-            }
-        });
-        Network.loadingFinished(({requestId})=>{
-            console.log(requestId);
-            console.log(requestIdForBootstrap);
-            responseReceived.push(requestId);
-            if(requestId==requestIdForBootstrap){
-                console.log('going for',requestId);
-                fileIndex.push({
-                    currentUrl,
-                    requestId
-                });
-                Network.getResponseBody({requestId}, (base64Encoded, body, error)=>{
-                    console.log(base64Encoded);
-                    console.log(error);
-                    if(error){
-                        console.log(error);
-                    }
-                    fsPath.writeFile('./bootstrap/'+requestId+'.json', JSON.stringify({
-                        requestId,
-                        method,
-                        bootstrapUrl,
-                        currentUrl,
-                        body
-                    }),function (err){
-                        if(err) throw err;
-                        console.log('Parsing finished for '+requestId+'; File created in the local directory!')
-                        return;
-                    });  
-                });  
-            }
-        })
-        await Network.enable();
-        await Page.enable();
-        // var url_index_mapping = [];
-        var index = 1;
-        // for ( url of urls){
-        //     if(Math.random()<0.2){
-                // url_index_mapping.push({index, url});
-                await Page.navigate({url:'https://public.tableau.com/en-us/s/gallery/mothers-diary-12-weeks-motherhood?gallery=votd'});
-                // await Page.navigate({url:'https://public.tableau.com/en-us/s/gallery/godzilla-invasion-route-and-damage?gallery=votd'});
-                // await Page.navigate({url});
-                // currentUrl=url;
-                await Page.loadEventFired();
-                await wait(3000);
-                console.log(requestWillBeSent);
-                console.log(responseReceived);
-                console.log(requestId);
-                index++;
-        //     }
-        //     if(index==50){
-        //         break;
-        //     }
-        // }
-        await client.close();
-        fsPath.writeFile('./bootstrap/index.json', JSON.stringify(fileIndex), (err)=>{
-            if(err) throw err;
-        });
-        return;
-    });
-});
 
+        for (let i = 0; i < urls.length;) {
+          let batchNum = urls.length - i < BatchNum ? urls.length - i: BatchNum;
+          let remainingRequests = [];
+
+          for (let c = i; c < i + batchNum; c++){
+            let finished = false;
+            let url = urls[c];
+            let ridForBootstrap;
+            let { tabId, protocol } = await chromeTabsPoll.require();
+            let { Page, Target, Network, DOM } = protocol;
+            await Network.enable();
+            await Page.enable();
+            Network.requestWillBeSent(params => {
+                if (params.request.method === 'POST' &&
+                    params.request.url.includes('bootstrapSession') &&
+                   !params.request.url.includes('errors') ) {
+                    ridForBootstrap = params.requestId;
+                    console.log('Find BoostrapUrl for', ridForBootstrap);
+                }
+            });
+
+            let task = new Promise((resolve, reject) => {
+              let timeout = setTimeout(() => {
+                taskFailed++;
+                console.log(url, "Failed");
+                resolve(true);
+              }, 10000);
+                Network.loadingFinished(({requestId})=>{
+                    responseReceived.push(requestId);
+                    if(requestId === ridForBootstrap){
+                        console.log('going for',requestId);
+                        clearTimeout(timeout);
+                        timeout = setTimeout(() => {
+                          taskFailed++;
+                          console.log(requestId, "Failed");
+                          resolve(true);
+                        }, 10000);
+                        Network.getResponseBody({requestId}, (base64Encoded, body, error)=>{
+                            if(error){
+                                throw error;
+                            }
+                            let data = body['body'];
+                            if (data) {
+                              let regx = /\}[0-9]+\;\{/g;
+                              let match;
+                              let seperator = '@$#7842@&#';
+                              while ((match = regx.exec(data)) != null) {
+                                data = data.slice(0, match.index+1) + seperator + data.slice(match.index+1);
+                              }
+                              let dataToTrim = data.split(seperator);
+                              let usefulData = {};
+                              for(let p = 0; p < dataToTrim.length; p++) {
+                                let d = dataToTrim[p];
+                                let dataId = d.slice(0, d.indexOf(';{'));
+                                fileIndex.push(dataId);
+                                try {
+                                  d = JSON.parse(d.slice(d.indexOf(';{') + 1));
+                                  try {
+                                    fsPath.writeFileSync('./bootstrap/'+dataId+'.json', JSON.stringify(d));
+                                  } catch(e) {
+                                    reject(e);
+                                  }
+                                } catch(e) {
+                                  return;
+                                }
+                                // console.log('File created in the local directory: '+requestId+'-'+dataId);
+                              }
+                              clearTimeout(timeout);
+                              resolve(true);
+                            }
+                        });
+
+                    }
+                });
+            }).then(() => protocol.close());
+            remainingRequests.push(task);
+            console.log("Start query: ", url);
+            Page.navigate({url:url});
+          }
+          await Promise.all(remainingRequests);
+          i = i + batchNum;
+        }
+        await chromeTabsPoll.destroyPoll();
+        console.log("Total Fail:", taskFailed);
+        fsPath.writeFileSync('./bootstrap/index.json', JSON.stringify(fileIndex));
+        process.exit();
+    });
+    return;
+  });
+};
+
+ crawler(parseInt(process.argv[2]) || 10);
 // -------------------------------------ERROR HANDLER---------------------------------//
 //do something when app is closing
 process.on('exit', exitHandler.bind(null,{cleanup:true}));
@@ -118,4 +134,3 @@ function exitHandler(options, err) {
         if (options.exit) process.exit();
     });
 }
-
