@@ -1,0 +1,14 @@
+{
+  "name": "headless",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Jacob",
+  "license": "ISC",
+  "dependencies": {
+    "aws-sdk": "^2.135.0",
+    "chrome-pool": "^1.2.1",
+    "chrome-remote-interface": "^0.22.0",
+    "gifencoder": "^1.1.0",
+    "png-file-stream": "^1.0.0"
+  }
+}
